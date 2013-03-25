@@ -1,7 +1,11 @@
 import collections
 import sqlite3
+from datetime import datetime
 
 class Field:
+    # _type = object
+    _type = None
+
     def __get__(self, obj, objtype):
         if obj is None:
             return type(self)
@@ -11,6 +15,9 @@ class Field:
         return None
 
     def __set__(self, obj, val):
+        if not isinstance(val, self._type):
+            # TODO: trackback in true assign context
+            raise TypeError("expect {} but got {}".format(self._type, type(val)))
         name = self._get_name_from_cls(type(obj))
         obj._cache[name] = val
 
@@ -24,25 +31,26 @@ class Field:
 
 
 class IntegerField(Field):
-    pass
+    _type = int
 
 class RealField(Field):
-    pass
+    _type = float
 
 class TextField(Field):
-    pass
+    _type = str
 
 class BlobField(Field):
-    pass
+    _type = bytes
 
 class DateField(Field):
-    pass
+    _type = datetime
 
 class TimeStampField(Field):
-    pass
+    # TODO: what its exactly type
+    _type = int
 
 class BolleanField(Field):
-    pass
+    _type = bool
 
 
 class Meta(type):
@@ -61,6 +69,13 @@ class Model(metaclass=Meta):
     def __init__(self):
         self._cache = {}
 
+    def save(self):
+        if self.isnew():
+            cursor.execute("")
+        else:
+            cursor.execute("")
+
+
 if __name__ == "__main__":
     class User(Model):
         name = TextField()
@@ -68,7 +83,7 @@ if __name__ == "__main__":
 
     u = User()
     u.name = "mike"
-    u.age = 23
+    u.age = 24
     print(u.__dict__)
     print(u.age)
     print(u.name)
