@@ -2,13 +2,25 @@ import collections
 import sqlite3
 from datetime import datetime
 
+class DataBase:
+    _cursor = None
+    @classmethod
+    def connect(cls, dbname=":memory:"):
+        if cls._cursor:
+            return cls._cursor
+        conn = sqlite3.connect(dbname)
+        cls._conn = conn
+        cursor = conn.cursor()
+        cls._cursor = cursor
+        return cursor
+
+
 class Field:
-    # _type = object
     _type = None
 
     def __get__(self, obj, objtype):
         if obj is None:
-            return type(self)
+            return self
         name = self._get_name_from_cls(objtype)
         if name and name in obj._cache:
             return obj._cache[name]
@@ -18,16 +30,8 @@ class Field:
         if not isinstance(val, self._type):
             # TODO: trackback in true assign context
             raise TypeError("expect {} but got {}".format(self._type, type(val)))
-        name = self._get_name_from_cls(type(obj))
-        obj._cache[name] = val
+        obj._cache[self._columnname] = val
 
-    def _get_name_from_cls(self, cls):
-        d = cls.__dict__
-        for name in d:
-            if self is d[name]:
-                return name
-        # never going here
-        assert False
 
 
 class IntegerField(Field):
@@ -63,6 +67,9 @@ class Meta(type):
         result = type.__new__(cls, name, bases, dict(namespace))
         result._fields = tuple(k for k, v in namespace.items() if
                                isinstance(v, Field))
+        for column in result._fields:
+            namespace[column]._columnname = column
+
         return result
 
 class Model(metaclass=Meta):
@@ -85,5 +92,5 @@ if __name__ == "__main__":
     u.name = "mike"
     u.age = 24
     print(u.__dict__)
-    print(u.age)
-    print(u.name)
+    u.age = 25
+    print(u.__dict__)
