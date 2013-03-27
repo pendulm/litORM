@@ -23,8 +23,10 @@ class DataBase:
             return cls._cursor
         conn = sqlite3.connect(dbname)
         cls._conn = conn
-        cls._cursor = cls.WrapperCursor(conn)
-        return cls._cursor
+        cursor = cls.WrapperCursor(conn)
+        cls._cursor = cursor
+        cursor.row_factory = sqlite3.Row
+        return cursor
 
 
 def usedb(dbname=":memory:"):
@@ -38,14 +40,14 @@ class Field:
     def __get__(self, obj, objtype):
         if obj is None:
             return self
-        name = self._get_name_from_cls(objtype)
+        name = self._columnname
         if name and name in obj._cache:
             return obj._cache[name]
         return None
 
     def __set__(self, obj, val):
         if not isinstance(val, self._type):
-            # TODO: trackback in true assign context
+            print(self._columnname, val)
             raise TypeError("expect {} but got {}".format(self._type, type(val)))
         obj._cache[self._columnname] = val
 
@@ -74,7 +76,7 @@ class TimeStampField(Field):
     _type = int
 
 class BolleanField(Field):
-    _type = bool
+    _type = int
 
 
 class Meta(type):
@@ -113,7 +115,7 @@ class Meta(type):
             raise RuntimeError("table '{}' has not create yet".format(
                 self._tablename))
 
-        cursor.execute("select count(*) from " + self._tablename)
+        cursor.execute("select count(*) from " + self._tablename + ";")
         self._rows = cursor.fetchone()[0]
         return self._rows
 
@@ -134,6 +136,25 @@ class Model(metaclass=Meta):
         cursor.execute(sql_stmt)
         cls._iscreated = True
 
+    @classmethod
+    def find(cls, _id):
+        sql_stmt = "select * from {} where _id = ?;".format(cls._tablename)
+        cursor.execute(sql_stmt, (_id,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+
+        obj = cls()
+
+        for k in row.keys():
+            if row[k] is not None:
+                if k == '_id':
+                    obj._cache['_id'] = row[k]
+                else:
+                    setattr(obj, k, row[k])
+        return obj
+
+
     def save(self):
         name_seq = [n for (n, t) in self._fields if n in self._cache] 
         value_seq = tuple(self._cache[n] for n in name_seq)
@@ -147,19 +168,3 @@ class Model(metaclass=Meta):
                     ", ".join(name_seq), ("?,"*len(name_seq))[:-1])
             cursor.execute(sql_stmt, value_seq)
 
-
-
-if __name__ == "__main__":
-    usedb("test.db")
-    class User(Model):
-        name = TextField()
-        age = IntegerField()
-
-    u = User()
-    u.name = "mike"
-    u.age = 24
-    # u._cache['_id'] = 1
-    # print(u.__dict__)
-    # u.save()
-    DataBase._conn.commit()
-    print(len(User))
